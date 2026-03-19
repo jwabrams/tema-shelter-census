@@ -224,13 +224,23 @@
       document.getElementById("subtitle").textContent = `GlobalID: ${globalid}`;
       setStatus("Grabbing session token…");
 
-      // Try each portal — use whichever has an active session
+      // Silently check for existing session first, then fall back to getCredential
       let credential = null;
       for (const url of PORTALS) {
         try {
-          credential = await IdentityManager.getCredential(url);
+          credential = await IdentityManager.checkSignInStatus(url);
           if (credential) break;
-        } catch (_) { /* not logged in here, try next */ }
+        } catch (_) { /* no session here, try next */ }
+      }
+
+      // If no silent session found, try getCredential (may prompt login)
+      if (!credential) {
+        for (const url of PORTALS) {
+          try {
+            credential = await IdentityManager.getCredential(url);
+            if (credential) break;
+          } catch (_) { /* not logged in here, try next */ }
+        }
       }
 
       if (!credential) {
