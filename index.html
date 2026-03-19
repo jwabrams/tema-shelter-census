@@ -119,6 +119,9 @@
 </div>
 
 <script>
+  // ── OAuth App ID ──────────────────────────────────────────────────────────
+  const APP_ID = "YOUR_CLIENT_ID_HERE";
+
   // ── Config ────────────────────────────────────────────────────────────────
   const SHELTER_URL = "https://services1.arcgis.com/kILp9lqGUeOhnDbI/arcgis/rest/services/service_570f1aad0c2641e7beac6dfca700747e/FeatureServer/0";
   const CENSUS_URL  = "https://services1.arcgis.com/kILp9lqGUeOhnDbI/ArcGIS/rest/services/Shelter_Census_View_Only/FeatureServer/0";
@@ -205,6 +208,9 @@
     }
   }
 
+  // ── OAuth App ID (registered in AGO against this GitHub Pages URL) ────────
+  const APP_ID = "O8DmwzloQcog4ZoF"; // ← replace with your registered App ID
+
   // ── Register service worker ───────────────────────────────────────────────
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("./sw.js").catch(err => {
@@ -213,8 +219,16 @@
   }
 
   // ── Main ──────────────────────────────────────────────────────────────────
-  require(["esri/identity/IdentityManager", "esri/portal/Portal"], async (IdentityManager, Portal) => {
+  require(["esri/identity/IdentityManager", "esri/identity/OAuthInfo", "esri/portal/Portal"], async (IdentityManager, OAuthInfo, Portal) => {
     try {
+      // Register OAuth so JSAPI can broker login from GitHub Pages
+      const info = new OAuthInfo({
+        appId:           APP_ID,
+        portalUrl:       PORTALS[0], // TEMAHub as primary
+        flowType:        "auto",
+        popup:           false,       // redirect flow — no popup blocker issues
+      });
+      IdentityManager.registerOAuthInfos([info]);
       const params   = new URLSearchParams(window.location.search);
       const globalid = params.get("id");
 
