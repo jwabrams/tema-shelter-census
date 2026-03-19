@@ -120,7 +120,10 @@
 
 <script>
   // ── Config ────────────────────────────────────────────────────────────────
-  const PORTAL_URL  = "https://temahub.maps.arcgis.com";
+  const PORTALS = [
+    "https://temahub.maps.arcgis.com",
+    "https://tnema.maps.arcgis.com",
+  ];
   const SHELTER_URL = "https://services1.arcgis.com/kILp9lqGUeOhnDbI/arcgis/rest/services/service_570f1aad0c2641e7beac6dfca700747e/FeatureServer/0";
   const CENSUS_URL  = "https://services1.arcgis.com/kILp9lqGUeOhnDbI/ArcGIS/rest/services/Shelter_Census_View_Only/FeatureServer/0";
 
@@ -221,12 +224,17 @@
       document.getElementById("subtitle").textContent = `GlobalID: ${globalid}`;
       setStatus("Grabbing session token…");
 
-      // Grab token from existing AGO/Hub session — no app registration needed
-      let credential;
-      try {
-        credential = await IdentityManager.getCredential(PORTAL_URL);
-      } catch (e) {
-        setStatus("Not signed in. Please open this page from your ArcGIS Hub site.", "error");
+      // Try each portal — use whichever has an active session
+      let credential = null;
+      for (const url of PORTALS) {
+        try {
+          credential = await IdentityManager.getCredential(url);
+          if (credential) break;
+        } catch (_) { /* not logged in here, try next */ }
+      }
+
+      if (!credential) {
+        setStatus("Not signed in. Please open this page from your ArcGIS Hub or TEMA Org.", "error");
         return;
       }
 
