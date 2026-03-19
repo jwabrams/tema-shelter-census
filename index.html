@@ -207,7 +207,7 @@
   }
 
   // ── OAuth App ID (registered in AGO against this GitHub Pages URL) ────────
-  const APP_ID = "O8DmwzloQcog4ZoF"; // ← replace with your registered App ID
+  const APP_ID = "YOUR_APP_ID_HERE"; // ← replace with your registered App ID
 
   // ── Register service worker ───────────────────────────────────────────────
   if ("serviceWorker" in navigator) {
@@ -229,6 +229,7 @@
       IdentityManager.registerOAuthInfos([info]);
       const params   = new URLSearchParams(window.location.search);
       const globalid = params.get("id");
+      console.log("GlobalID from URL:", globalid);
 
       if (!globalid) {
         setStatus("No GlobalID provided. Add ?id={GlobalID} to the URL.", "error");
@@ -238,16 +239,22 @@
 
       document.getElementById("subtitle").textContent = `GlobalID: ${globalid}`;
       setStatus("Checking session…");
+      console.log("Checking portals...");
 
       // Try each portal for an active session
       let portal = null;
       for (const url of PORTALS) {
         try {
+          console.log("Trying portal:", url);
           const p = new Portal({ url });
           await p.load();
+          console.log("Portal loaded, user:", p.user);
           if (p.user) { portal = p; break; }
-        } catch (_) { /* not logged in here, try next */ }
+        } catch (e) {
+          console.warn("Portal failed:", url, e.message);
+        }
       }
+      console.log("Portal result:", portal);
 
       if (!portal) {
         const returnUrl = encodeURIComponent(window.location.href);
