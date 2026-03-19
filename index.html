@@ -120,16 +120,12 @@
 
 <script>
   // ── Config ────────────────────────────────────────────────────────────────
-  const APP_ID      = "ZvL2cFcPAjxB8HU2"; // ← replace with your AGO Client ID
+  const PORTAL_URL  = "https://temahub.maps.arcgis.com";
   const SHELTER_URL = "https://services1.arcgis.com/kILp9lqGUeOhnDbI/arcgis/rest/services/service_570f1aad0c2641e7beac6dfca700747e/FeatureServer/0";
   const CENSUS_URL  = "https://services1.arcgis.com/kILp9lqGUeOhnDbI/ArcGIS/rest/services/Shelter_Census_View_Only/FeatureServer/0";
-  const PORTALS     = [
-    "https://temahub.maps.arcgis.com",
-    "https://tnema.maps.arcgis.com",
-  ];
 
   const SHELTER_SKIP = new Set(["objectid", "OBJECTID", "Shape__Area", "Shape__Length"]);
-  const CENSUS_SKIP  = new Set(["objectid", "OBJECTID", "globalid", "GlobalID", "Shape__Area", "Shape__Length"]);
+  const CENSUS_SKIP  = new Set(["objectid", "OBJECTID", "globalid", "GlobalID", "dataid", "Shape__Area", "Shape__Length"]);
 
   const statusEl = document.getElementById("status");
 
@@ -143,14 +139,18 @@
     return v;
   }
 
-  async function queryLayer(layerUrl, where) {
-    const { default: esriRequest } = await $arcgis.import("esri/request");
-    const res = await esriRequest(`${layerUrl}/query`, {
-      query: { where, outFields: "*", returnGeometry: false, f: "json" },
-      responseType: "json",
+  async function queryLayer(layerUrl, where, token) {
+    const params = new URLSearchParams({
+      where,
+      outFields:      "*",
+      returnGeometry: false,
+      f:              "json",
+      token,
     });
-    if (res.data.error) throw new Error(res.data.error.message);
-    return res.data.features || [];
+    const res  = await fetch(`${layerUrl}/query?${params}`);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message);
+    return data.features || [];
   }
 
   function renderShelter(attrs) {
@@ -206,80 +206,53 @@
     }
   }
 
-  // ── Register service worker ───────────────────────────────────────────────
-  if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("./sw.js").catch(err => {
-      console.warn("SW registration failed:", err);
-    });
-  }
-
   // ── Main ──────────────────────────────────────────────────────────────────
-  require(["esri/identity/IdentityManager", "esri/identity/OAuthInfo", "esri/portal/Portal"],
-    (IdentityManager, OAuthInfo, Portal) => {
+  require(["esri/identity/IdentityManager"], async (IdentityManager) => {
+    try {
+      const params   = new URLSearchParams(window.location.search);
+      const globalid = params.get("id");
 
-    // Register OAuth synchronously before any async work
-    const info = new OAuthInfo({
-      appId:    APP_ID,
-      portalUrl: PORTALS[0],
-      flowType: "auto",
-      popup:    false,
-    });
-    IdentityManager.registerOAuthInfos([info]);
-    console.log("OAuthInfo registered");
-
-    (async () => {
-      try {
-        const params   = new URLSearchParams(window.location.search);
-        const globalid = params.get("id");
-        console.log("GlobalID from URL:", globalid);
-
-        if (!globalid) {
-          setStatus("No GlobalID provided. Add ?id={GlobalID} to the URL.", "error");
-          document.getElementById("subtitle").textContent = "Missing required URL parameter.";
-          return;
-        }
-
-        document.getElementById("subtitle").textContent = `GlobalID: ${globalid}`;
-        setStatus("Checking session…");
-
-        // Force OAuth — will redirect to login if not signed in
-        const portal = new Portal({ url: PORTALS[0] });
-        portal.authMode = "immediate";
-        console.log("Loading portal…");
-        await portal.load();
-        console.log("Portal loaded, user:", portal.user);
-
-        if (!portal.user) {
-          const returnUrl = encodeURIComponent(window.location.href);
-          window.location.href = `https://temahub.maps.arcgis.com/home/signin.html?returnUrl=${returnUrl}`;
-          return;
-        }
-
-        const safeGID = globalid.replace(/'/g, "''");
-
-        setStatus("Querying shelter record…");
-        console.log("Querying shelter…");
-        const shelterFeatures = await queryLayer(SHELTER_URL, `GlobalID = '${safeGID}'`);
-
-        if (shelterFeatures.length === 0) {
-          setStatus(`No shelter record found for GlobalID: ${globalid}`, "error");
-          return;
-        }
-
-        renderShelter(shelterFeatures[0].attributes);
-
-        setStatus("Querying census records…");
-        console.log("Querying census…");
-        const censusFeatures = await queryLayer(CENSUS_URL, `dataid = '${safeGID}'`);
-
-        renderCensus(censusFeatures);
-        setStatus(`Loaded — ${censusFeatures.length} census record(s).`, "ok");
-
-      } catch (err) {
-        setStatus(`Error: ${err.message}`, "error");
-        console.error(err);
+      if (!globalid) {
+        setStatus("No GlobalID provided. Add ?id={GlobalID} to the URL.", "error");
+        document.getElementById("subtitle").textContent = "Missing required URL parameter.";
+        return;
       }
-    })();
+
+      document.getElementById("subtitle").textContent = `GlobalID: ${globalid}`;
+      setStatus("Grabbing session token…");
+
+      // Grab token from existing AGO/Hub session — no app registration needed
+      let credential;
+      try {
+        credential = await IdentityManager.getCredential(PORTAL_URL);
+      } catch (e) {
+        setStatus("Not signed in. Please open this page from your ArcGIS Hub site.", "error");
+        return;
+      }
+
+      const token  = credential.token;
+      const safeGID = globalid.replace(/'/g, "''");
+
+      setStatus("Querying shelter record…");
+      const shelterFeatures = await queryLayer(SHELTER_URL, `GlobalID = '${safeGID}'`, token);
+
+      if (shelterFeatures.length === 0) {
+        setStatus(`No shelter record found for GlobalID: ${globalid}`, "error");
+        return;
+      }
+
+      renderShelter(shelterFeatures[0].attributes);
+
+      setStatus("Querying census records…");
+      const censusFeatures = await queryLayer(CENSUS_URL, `dataid = '${safeGID}'`, token);
+
+      renderCensus(censusFeatures);
+      setStatus(`Loaded — ${censusFeatures.length} census record(s).`, "ok");
+
+    } catch (err) {
+      setStatus(`Error: ${err.message}`, "error");
+      console.error(err);
+    }
   });
 </script>
 
