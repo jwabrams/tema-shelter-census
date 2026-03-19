@@ -256,7 +256,7 @@
       renderShelter(shelterFeatures[0].attributes);
 
       setStatus("Querying census records…");
-      const censusFeatures = await queryLayer(CENSUS_URL, `globalid = '${safeGID}'`);
+      const censusFeatures = await queryLayer(CENSUS_URL, `dataid = '${safeGID}'`);
 
       renderCensus(censusFeatures);
       setStatus(`Loaded — ${censusFeatures.length} census record(s).`, "ok");
