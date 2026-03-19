@@ -240,22 +240,13 @@
       setStatus("Checking session…");
       console.log("Checking portals...");
 
-      // Try each portal for an active session
-      let portal = null;
-      for (const url of PORTALS) {
-        try {
-          console.log("Trying portal:", url);
-          const p = new Portal({ url });
-          await p.load();
-          console.log("Portal loaded, user:", p.user);
-          if (p.user) { portal = p; break; }
-        } catch (e) {
-          console.warn("Portal failed:", url, e.message);
-        }
-      }
-      console.log("Portal result:", portal);
+      // Force OAuth check — will redirect to login if no session exists
+      const portal = new Portal({ url: PORTALS[0] });
+      portal.authMode = "immediate";
+      await portal.load();
+      console.log("Portal loaded, user:", portal.user);
 
-      if (!portal) {
+      if (!portal.user) {
         const returnUrl = encodeURIComponent(window.location.href);
         window.location.href = `https://temahub.maps.arcgis.com/home/signin.html?returnUrl=${returnUrl}`;
         return;
