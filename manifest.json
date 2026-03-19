@@ -6,7 +6,7 @@
   "homepage": "https://temahub.maps.arcgis.com",
   "repository": {
     "type": "git",
-    "url": "https://github.com/TEMA-GIS/<your-repo-name>"
+    "url": "https://github.com/jwabrams/tema-shelter-census"
   },
   "author": "Tennessee Emergency Management Agency (TEMA)",
   "license": "MIT",
