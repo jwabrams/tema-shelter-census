@@ -3,14 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Displays shelter and linked census records for a given GlobalID." />
-  <meta name="author" content="Tennessee Emergency Management Agency (TEMA)" />
   <title>Shelter Census Summary</title>
-
-  <!-- ArcGIS JSAPI -->
-  <link rel="stylesheet" href="https://js.arcgis.com/4.29/esri/themes/light/main.css" />
-  <script src="https://js.arcgis.com/4.29/"></script>
-
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -120,10 +113,7 @@
 
 <script>
   // ── Config ────────────────────────────────────────────────────────────────
-  const PORTALS = [
-    "https://temahub.maps.arcgis.com",
-    "https://tnema.maps.arcgis.com",
-  ];
+  const PORTAL_URL  = "https://tnema.maps.arcgis.com";
   const SHELTER_URL = "https://services1.arcgis.com/kILp9lqGUeOhnDbI/arcgis/rest/services/service_570f1aad0c2641e7beac6dfca700747e/FeatureServer/0";
   const CENSUS_URL  = "https://services1.arcgis.com/kILp9lqGUeOhnDbI/ArcGIS/rest/services/Shelter_Census_View_Only/FeatureServer/0";
 
@@ -142,6 +132,40 @@
     return v;
   }
 
+  // ── Get token from AGO session cookie via REST ────────────────────────────
+  async function getToken() {
+    const res  = await fetch(
+      `${PORTAL_URL}/sharing/rest/info?f=json`,
+      { credentials: "include" }
+    );
+    const info = await res.json();
+
+    // Use the token endpoint from the portal info
+    const tokenUrl = info?.authInfo?.tokenServicesUrl
+      || `${PORTAL_URL}/sharing/rest/generateToken`;
+
+    // Request a short-lived token using the existing session cookie
+    const params = new URLSearchParams({
+      request:    "getToken",
+      serverUrl:  "https://services1.arcgis.com",
+      referer:    window.location.origin,
+      expiration: 60,
+      f:          "json",
+    });
+
+    const tokenRes  = await fetch(tokenUrl, {
+      method:      "POST",
+      body:        params,
+      credentials: "include",
+    });
+    const tokenData = await tokenRes.json();
+
+    if (tokenData.error) throw new Error(`Token error: ${tokenData.error.message}`);
+    if (!tokenData.token) throw new Error("No token returned — are you logged into the TEMA org?");
+    return tokenData.token;
+  }
+
+  // ── Query a feature layer ─────────────────────────────────────────────────
   async function queryLayer(layerUrl, where, token) {
     const params = new URLSearchParams({
       where,
@@ -156,6 +180,7 @@
     return data.features || [];
   }
 
+  // ── Render shelter fields ─────────────────────────────────────────────────
   function renderShelter(attrs) {
     const el = document.getElementById("shelter-fields");
     el.innerHTML = "";
@@ -179,6 +204,7 @@
     document.getElementById("shelter-card").style.display = "";
   }
 
+  // ── Render census table ───────────────────────────────────────────────────
   function renderCensus(features) {
     const headEl = document.getElementById("census-head");
     const bodyEl = document.getElementById("census-body");
@@ -210,7 +236,7 @@
   }
 
   // ── Main ──────────────────────────────────────────────────────────────────
-  require(["esri/identity/IdentityManager"], async (IdentityManager) => {
+  (async () => {
     try {
       const params   = new URLSearchParams(window.location.search);
       const globalid = params.get("id");
@@ -224,31 +250,7 @@
       document.getElementById("subtitle").textContent = `GlobalID: ${globalid}`;
       setStatus("Grabbing session token…");
 
-      // Silently check for existing session first, then fall back to getCredential
-      let credential = null;
-      for (const url of PORTALS) {
-        try {
-          credential = await IdentityManager.checkSignInStatus(url);
-          if (credential) break;
-        } catch (_) { /* no session here, try next */ }
-      }
-
-      // If no silent session found, try getCredential (may prompt login)
-      if (!credential) {
-        for (const url of PORTALS) {
-          try {
-            credential = await IdentityManager.getCredential(url);
-            if (credential) break;
-          } catch (_) { /* not logged in here, try next */ }
-        }
-      }
-
-      if (!credential) {
-        setStatus("Not signed in. Please open this page from your ArcGIS Hub or TEMA Org.", "error");
-        return;
-      }
-
-      const token  = credential.token;
+      const token   = await getToken();
       const safeGID = globalid.replace(/'/g, "''");
 
       setStatus("Querying shelter record…");
@@ -271,7 +273,7 @@
       setStatus(`Error: ${err.message}`, "error");
       console.error(err);
     }
-  });
+  })();
 </script>
 
 </body>
