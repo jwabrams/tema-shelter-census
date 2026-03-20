@@ -4,6 +4,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Shelter Census Summary</title>
+
+  <!-- ArcGIS JSAPI -->
+  <link rel="stylesheet" href="https://js.arcgis.com/4.29/esri/themes/light/main.css" />
+  <script src="https://js.arcgis.com/4.29/"></script>
+
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -132,40 +137,6 @@
     return v;
   }
 
-  // ── Get token from AGO session cookie via REST ────────────────────────────
-  async function getToken() {
-    const res  = await fetch(
-      `${PORTAL_URL}/sharing/rest/info?f=json`,
-      { credentials: "include" }
-    );
-    const info = await res.json();
-
-    // Use the token endpoint from the portal info
-    const tokenUrl = info?.authInfo?.tokenServicesUrl
-      || `${PORTAL_URL}/sharing/rest/generateToken`;
-
-    // Request a short-lived token using the existing session cookie
-    const params = new URLSearchParams({
-      request:    "getToken",
-      serverUrl:  "https://services1.arcgis.com",
-      referer:    window.location.origin,
-      expiration: 60,
-      f:          "json",
-    });
-
-    const tokenRes  = await fetch(tokenUrl, {
-      method:      "POST",
-      body:        params,
-      credentials: "include",
-    });
-    const tokenData = await tokenRes.json();
-
-    if (tokenData.error) throw new Error(`Token error: ${tokenData.error.message}`);
-    if (!tokenData.token) throw new Error("No token returned — are you logged into the TEMA org?");
-    return tokenData.token;
-  }
-
-  // ── Query a feature layer ─────────────────────────────────────────────────
   async function queryLayer(layerUrl, where, token) {
     const params = new URLSearchParams({
       where,
@@ -180,7 +151,6 @@
     return data.features || [];
   }
 
-  // ── Render shelter fields ─────────────────────────────────────────────────
   function renderShelter(attrs) {
     const el = document.getElementById("shelter-fields");
     el.innerHTML = "";
@@ -204,7 +174,6 @@
     document.getElementById("shelter-card").style.display = "";
   }
 
-  // ── Render census table ───────────────────────────────────────────────────
   function renderCensus(features) {
     const headEl = document.getElementById("census-head");
     const bodyEl = document.getElementById("census-body");
@@ -236,7 +205,7 @@
   }
 
   // ── Main ──────────────────────────────────────────────────────────────────
-  (async () => {
+  require(["esri/identity/IdentityManager"], async (IdentityManager) => {
     try {
       const params   = new URLSearchParams(window.location.search);
       const globalid = params.get("id");
@@ -250,7 +219,23 @@
       document.getElementById("subtitle").textContent = `GlobalID: ${globalid}`;
       setStatus("Grabbing session token…");
 
-      const token   = await getToken();
+      // Try silent check first
+      let credential = null;
+      try {
+        credential = await IdentityManager.checkSignInStatus(`${PORTAL_URL}/sharing/rest`);
+      } catch (_) { /* no active session */ }
+
+      // If nothing found prompt login
+      if (!credential) {
+        try {
+          credential = await IdentityManager.getCredential(`${PORTAL_URL}/sharing/rest`);
+        } catch (e) {
+          setStatus("Not signed in. Please open this page from your TEMA ArcGIS Org.", "error");
+          return;
+        }
+      }
+
+      const token   = credential.token;
       const safeGID = globalid.replace(/'/g, "''");
 
       setStatus("Querying shelter record…");
@@ -273,7 +258,7 @@
       setStatus(`Error: ${err.message}`, "error");
       console.error(err);
     }
-  })();
+  });
 </script>
 
 </body>
