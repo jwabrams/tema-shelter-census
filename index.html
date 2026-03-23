@@ -26,7 +26,7 @@
 
 <h1>Shelter Census</h1>
 <div id="subtitle">People count per night/day for selected shelter</div>
-<div id="status">Requesting session token…</div>
+<div id="status">Loading…</div>
 <table id="census-table" style="display:none">
   <thead>
     <tr>
@@ -45,8 +45,6 @@ const CONFIG = {
   shelterGlobalIdField: "dataid",
   dateField: "shelter_date",
   countField: "census",
-  // Only accept postMessage tokens from your XB/portal origin
-  trustedOrigin: "https://tnema.maps.arcgis.com",
 };
 
 function setStatus(msg, isError = false) {
@@ -60,17 +58,31 @@ function formatDate(ts) {
   return new Date(ts).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
 }
 
-async function fetchCensus(token, globalId) {
-  setStatus("Querying census records…");
-  console.log("[ShelterCensus] token received, querying for globalId:", globalId);
+async function loadCensusData() {
+  console.log("[ShelterCensus] started");
 
+  // 1. Get GlobalID from URL param
+  const params = new URLSearchParams(window.location.search);
+  const globalId = params.get("globalid");
+  console.log("[ShelterCensus] globalid:", globalId);
+
+  if (!globalId) {
+    setStatus("No shelter GlobalID provided in the URL (?globalid=...).", true);
+    return;
+  }
+
+  document.getElementById("footer").textContent = `Shelter GlobalID: ${globalId}`;
+  setStatus("Querying census records…");
+
+  // 2. Build query — no token needed, service is public
   const where = `${CONFIG.shelterGlobalIdField} = '${globalId}'`;
   const url = new URL(`${CONFIG.censusLayerUrl}/query`);
   url.searchParams.set("where", where);
   url.searchParams.set("outFields", `${CONFIG.dateField},${CONFIG.countField}`);
   url.searchParams.set("orderByFields", `${CONFIG.dateField} ASC`);
   url.searchParams.set("f", "json");
-  url.searchParams.set("token", token);
+
+  console.log("[ShelterCensus] querying:", url.toString());
 
   let data;
   try {
@@ -96,6 +108,7 @@ async function fetchCensus(token, globalId) {
     return;
   }
 
+  // 3. Render table
   const tbody = document.getElementById("census-body");
   let total = 0;
 
@@ -118,49 +131,7 @@ async function fetchCensus(token, globalId) {
   document.getElementById("census-table").style.display = "table";
 }
 
-function init() {
-  // 1. Get GlobalID from URL param
-  const params = new URLSearchParams(window.location.search);
-  const globalId = params.get("globalid");
-  console.log("[ShelterCensus] globalid param:", globalId);
-
-  if (!globalId) {
-    setStatus("No shelter GlobalID provided in the URL (?globalid=...).", true);
-    return;
-  }
-
-  document.getElementById("footer").textContent = `Shelter GlobalID: ${globalId}`;
-
-  // 2. Listen for token passed down from XB parent via postMessage
-  const tokenTimeout = setTimeout(() => {
-    setStatus(
-      "Token request timed out. Make sure the Experience Builder page token-relay snippet is in place " +
-      "and you are logged in to tnema.maps.arcgis.com.",
-      true
-    );
-  }, 8000);
-
-  window.addEventListener("message", function handler(event) {
-    // Only accept messages from your trusted AGOL origin
-    if (event.origin !== CONFIG.trustedOrigin) {
-      console.warn("[ShelterCensus] Ignored message from untrusted origin:", event.origin);
-      return;
-    }
-
-    if (event.data?.type === "AGOL_TOKEN" && event.data?.token) {
-      clearTimeout(tokenTimeout);
-      window.removeEventListener("message", handler);
-      console.log("[ShelterCensus] Token received via postMessage from parent.");
-      fetchCensus(event.data.token, globalId);
-    }
-  });
-
-  // 3. Ask the parent XB page for the token
-  console.log("[ShelterCensus] Requesting token from parent...");
-  window.parent.postMessage({ type: "REQUEST_AGOL_TOKEN" }, CONFIG.trustedOrigin);
-}
-
-init();
+loadCensusData();
 </script>
 </body>
 </html>
