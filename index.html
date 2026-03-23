@@ -86,40 +86,17 @@
 <footer id="footer"></footer>
 
 <script>
-// ─────────────────────────────────────────────
-// ✏️  CONFIGURE THESE VALUES
-// ─────────────────────────────────────────────
-
 const CONFIG = {
-  // Full REST URL to your census/people-count feature layer (include layer index)
-  // e.g. "https://services.arcgis.com/ABC123/arcgis/rest/services/ShelterCensus/FeatureServer/0"
   censusLayerUrl: "https://services1.arcgis.com/kILp9lqGUeOhnDbI/ArcGIS/rest/services/Shelter_Census_View_Only/FeatureServer/0",
-
-  // Field in the census layer that stores the shelter GlobalID (the foreign key)
-  // This is the field that links a census record back to its parent shelter
-  shelterGlobalIdField: "dataid",   // ✏️ rename to your actual FK field name
-
-  // Date/datetime field representing the night of the count
-  dateField: "shelter_date",                   // ✏️ rename to your actual date field name
-
-  // Numeric field holding the total people count for that night
-  countField: "census",                  // ✏️ rename to your actual count field name
-
-  // Your AGOL portal base URL (no trailing slash)
-  portalUrl: "https://tnema.maps.arcgis.com",        // ✏️ change if on a portal (e.g. https://yourorg.maps.arcgis.com)
+  shelterGlobalIdField: "dataid",
+  dateField: "shelter_date",
+  countField: "census",
+  portalUrl: "https://tnema.maps.arcgis.com",
 };
 
 // ─────────────────────────────────────────────
 // TOKEN — pulled from esri.arcgisPortal cookie
 // ─────────────────────────────────────────────
-
-/**
- * Reads the esri.arcgisPortal cookie, parses the JSON it contains,
- * and returns the token string. Returns null if not found or not logged in.
- *
- * NOTE: This cookie is HttpOnly in some AGOL configurations. If token
- * comes back null, see the fallback section below.
- */
 function getTokenFromCookie() {
   const raw = document.cookie
     .split("; ")
@@ -129,7 +106,6 @@ function getTokenFromCookie() {
   try {
     const val = decodeURIComponent(raw.split("=").slice(1).join("="));
     const parsed = JSON.parse(val);
-    // The cookie stores an array of credential objects; grab the first token
     if (Array.isArray(parsed) && parsed[0]?.token) return parsed[0].token;
     if (parsed?.token) return parsed.token;
   } catch {
@@ -138,12 +114,8 @@ function getTokenFromCookie() {
   return null;
 }
 
-/**
- * FALLBACK: If the cookie approach returns null (HttpOnly flag),
- * try the AGOL /sharing/rest/info endpoint — it echoes the token
- * for a logged-in session via XHR from the same origin.
- * Uncomment this block and call it instead of getTokenFromCookie() if needed.
- *
+// FALLBACK: rides the session cookie implicitly without reading it directly.
+// Uncomment the call below and comment out getTokenFromCookie() if the cookie is HttpOnly.
 async function getTokenFromPortalInfo() {
   const res = await fetch(
     `${CONFIG.portalUrl}/sharing/rest/portals/self?f=json`,
@@ -152,12 +124,10 @@ async function getTokenFromPortalInfo() {
   const data = await res.json();
   return data?.token ?? null;
 }
-*/
 
 // ─────────────────────────────────────────────
 // MAIN
 // ─────────────────────────────────────────────
-
 function setStatus(msg, isError = false) {
   const el = document.getElementById("status");
   el.textContent = msg;
@@ -185,16 +155,14 @@ async function loadCensusData() {
 
   document.getElementById("footer").textContent = `Shelter GlobalID: ${globalId}`;
 
-  // 2. Get token from cookie
+  // 2. Get token — swap to getTokenFromPortalInfo() if cookie is HttpOnly
   const token = getTokenFromCookie();
-  console.log("[ShelterCensus] token from cookie:", token ? "FOUND (" + token.substring(0,10) + "...)" : "NULL — not found");
-  // If using the fallback, replace with: const token = await getTokenFromPortalInfo();
+  console.log("[ShelterCensus] token from cookie:", token ? "FOUND (" + token.substring(0, 10) + "...)" : "NULL — not found");
 
   if (!token) {
     setStatus(
       "Could not retrieve an AGOL session token. Make sure you are logged in to ArcGIS Online " +
-      "in this browser and that this page is served from the same domain, or switch to the " +
-      "portal info fallback method.",
+      "in this browser. If this persists, switch to the getTokenFromPortalInfo() fallback.",
       true
     );
     return;
@@ -202,10 +170,10 @@ async function loadCensusData() {
 
   setStatus("Querying census records…");
 
-  // 3. Build query
-  console.log("[ShelterCensus] building query against:", CONFIG.censusLayerUrl); — match on the shelter FK field using the GlobalID
-  //    AGOL GlobalIDs must be wrapped in single quotes in WHERE clauses
+  // 3. Build query — match census records to shelter via dataid field
   const where = `${CONFIG.shelterGlobalIdField} = '${globalId}'`;
+  console.log("[ShelterCensus] WHERE clause:", where);
+  console.log("[ShelterCensus] querying:", CONFIG.censusLayerUrl);
 
   const queryUrl = new URL(`${CONFIG.censusLayerUrl}/query`);
   queryUrl.searchParams.set("where", where);
