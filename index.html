@@ -2,264 +2,264 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Shelter Census Summary</title>
-
-  <!-- ArcGIS JSAPI -->
-  <link rel="stylesheet" href="https://js.arcgis.com/4.29/esri/themes/light/main.css" />
-  <script src="https://js.arcgis.com/4.29/"></script>
-
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Shelter Census</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      font-family: Arial, sans-serif;
-      background: #eef1f5;
-      color: #222;
-      padding: 24px;
-      max-width: 1000px;
-      margin: 0 auto;
+      font-family: "Segoe UI", Arial, sans-serif;
+      background: #f4f6f9;
+      color: #1a1a1a;
+      padding: 2rem;
     }
 
-    h1 { font-size: 1.4em; color: #1a3a5c; margin-bottom: 4px; }
-    #subtitle { font-size: 0.82em; color: #888; margin-bottom: 20px; font-family: monospace; }
+    h1 {
+      font-size: 1.4rem;
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+      color: #003865;
+    }
+
+    #subtitle {
+      font-size: 0.85rem;
+      color: #666;
+      margin-bottom: 1.5rem;
+    }
 
     #status {
-      font-size: 0.82em;
-      min-height: 1.4em;
-      margin-bottom: 16px;
+      font-size: 0.9rem;
       color: #555;
+      margin-bottom: 1rem;
+      min-height: 1.2em;
     }
-    #status.error { color: #b00; font-weight: bold; }
-    #status.ok    { color: #1a7a3a; }
 
-    .card {
+    #status.error { color: #c0392b; font-weight: 600; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
       background: #fff;
       border-radius: 6px;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.1);
-      margin-bottom: 24px;
       overflow: hidden;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+    }
+
+    thead { background: #003865; color: #fff; }
+    th, td { padding: 0.65rem 1rem; text-align: left; font-size: 0.9rem; }
+    tbody tr:nth-child(even) { background: #f0f4f8; }
+    tbody tr:hover { background: #dce8f5; }
+
+    td.count { font-weight: 600; text-align: right; }
+    th.count { text-align: right; }
+
+    #no-data {
       display: none;
-    }
-    .card-header {
-      background: #1a3a5c;
-      color: #fff;
-      padding: 10px 16px;
-      font-size: 0.9em;
-      font-weight: bold;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-    .badge {
-      background: #fff;
-      color: #1a3a5c;
-      font-size: 0.75em;
-      padding: 2px 10px;
-      border-radius: 10px;
-      font-weight: bold;
+      margin-top: 1rem;
+      color: #888;
+      font-style: italic;
     }
 
-    .field-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    footer {
+      margin-top: 1.5rem;
+      font-size: 0.75rem;
+      color: #aaa;
     }
-    .field-item {
-      padding: 10px 16px;
-      border-bottom: 1px solid #eee;
-      border-right: 1px solid #eee;
-    }
-    .field-label {
-      font-size: 0.7em;
-      color: #999;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      margin-bottom: 3px;
-    }
-    .field-value { font-size: 0.88em; word-break: break-word; }
-    .field-value.empty { color: #ccc; font-style: italic; }
-
-    .table-wrap { overflow-x: auto; }
-    table { width: 100%; border-collapse: collapse; font-size: 0.82em; }
-    thead tr { background: #2c5f8a; color: #fff; }
-    th { padding: 9px 12px; text-align: left; white-space: nowrap; }
-    tbody tr:nth-child(even) { background: #f4f7fb; }
-    tbody tr:hover { background: #dde8f5; }
-    td { padding: 7px 12px; border-bottom: 1px solid #e8e8e8; vertical-align: top; }
-    #no-census { text-align: center; color: #999; padding: 20px; font-size: 0.85em; }
   </style>
 </head>
 <body>
 
-<h1>Shelter Census Summary</h1>
-<p id="subtitle">Initializing…</p>
-<div id="status"></div>
+<h1>Shelter Census</h1>
+<div id="subtitle">People count per night for selected shelter</div>
+<div id="status">Loading…</div>
+<table id="census-table" style="display:none">
+  <thead>
+    <tr>
+      <th>Night</th>
+      <th class="count">People Count</th>
+    </tr>
+  </thead>
+  <tbody id="census-body"></tbody>
+</table>
+<div id="no-data">No census records found for this shelter.</div>
 
-<div id="shelter-card" class="card">
-  <div class="card-header">
-    🏠 Shelter Record
-    <span class="badge" id="shelter-name"></span>
-  </div>
-  <div class="field-grid" id="shelter-fields"></div>
-</div>
-
-<div id="census-card" class="card">
-  <div class="card-header">
-    📋 Census Records
-    <span class="badge" id="census-count">0</span>
-  </div>
-  <div class="table-wrap">
-    <table>
-      <thead id="census-head"></thead>
-      <tbody id="census-body"></tbody>
-    </table>
-  </div>
-</div>
+<footer id="footer"></footer>
 
 <script>
-  // ── Config ────────────────────────────────────────────────────────────────
-  const PORTAL_URL  = "https://tnema.maps.arcgis.com";
-  const SHELTER_URL = "https://services1.arcgis.com/kILp9lqGUeOhnDbI/arcgis/rest/services/service_570f1aad0c2641e7beac6dfca700747e/FeatureServer/0";
-  const CENSUS_URL  = "https://services1.arcgis.com/kILp9lqGUeOhnDbI/ArcGIS/rest/services/Shelter_Census_View_Only/FeatureServer/0";
+// ─────────────────────────────────────────────
+// ✏️  CONFIGURE THESE VALUES
+// ─────────────────────────────────────────────
 
-  const SHELTER_SKIP = new Set(["objectid", "OBJECTID", "Shape__Area", "Shape__Length"]);
-  const CENSUS_SKIP  = new Set(["objectid", "OBJECTID", "globalid", "GlobalID", "dataid", "Shape__Area", "Shape__Length"]);
+const CONFIG = {
+  // Full REST URL to your census/people-count feature layer (include layer index)
+  // e.g. "https://services.arcgis.com/ABC123/arcgis/rest/services/ShelterCensus/FeatureServer/0"
+  censusLayerUrl: "https://services1.arcgis.com/kILp9lqGUeOhnDbI/ArcGIS/rest/services/Shelter_Census_View_Only/FeatureServer/0,
 
-  const statusEl = document.getElementById("status");
+  // Field in the census layer that stores the shelter GlobalID (the foreign key)
+  // This is the field that links a census record back to its parent shelter
+  shelterGlobalIdField: "dataid",   // ✏️ rename to your actual FK field name
 
-  function setStatus(msg, type = "") {
-    statusEl.textContent = msg;
-    statusEl.className = type;
+  // Date/datetime field representing the night of the count
+  dateField: "shelter_date",                   // ✏️ rename to your actual date field name
+
+  // Numeric field holding the total people count for that night
+  countField: "census",                  // ✏️ rename to your actual count field name
+
+  // Your AGOL portal base URL (no trailing slash)
+  portalUrl: "https://tnema.maps.arcgis.com",        // ✏️ change if on a portal (e.g. https://yourorg.maps.arcgis.com)
+};
+
+// ─────────────────────────────────────────────
+// TOKEN — pulled from esri.arcgisPortal cookie
+// ─────────────────────────────────────────────
+
+/**
+ * Reads the esri.arcgisPortal cookie, parses the JSON it contains,
+ * and returns the token string. Returns null if not found or not logged in.
+ *
+ * NOTE: This cookie is HttpOnly in some AGOL configurations. If token
+ * comes back null, see the fallback section below.
+ */
+function getTokenFromCookie() {
+  const raw = document.cookie
+    .split("; ")
+    .find(row => row.startsWith("esri.arcgisPortal="));
+  if (!raw) return null;
+
+  try {
+    const val = decodeURIComponent(raw.split("=").slice(1).join("="));
+    const parsed = JSON.parse(val);
+    // The cookie stores an array of credential objects; grab the first token
+    if (Array.isArray(parsed) && parsed[0]?.token) return parsed[0].token;
+    if (parsed?.token) return parsed.token;
+  } catch {
+    // Cookie exists but isn't the expected JSON shape
+  }
+  return null;
+}
+
+/**
+ * FALLBACK: If the cookie approach returns null (HttpOnly flag),
+ * try the AGOL /sharing/rest/info endpoint — it echoes the token
+ * for a logged-in session via XHR from the same origin.
+ * Uncomment this block and call it instead of getTokenFromCookie() if needed.
+ *
+async function getTokenFromPortalInfo() {
+  const res = await fetch(
+    `${CONFIG.portalUrl}/sharing/rest/portals/self?f=json`,
+    { credentials: "include" }
+  );
+  const data = await res.json();
+  return data?.token ?? null;
+}
+*/
+
+// ─────────────────────────────────────────────
+// MAIN
+// ─────────────────────────────────────────────
+
+function setStatus(msg, isError = false) {
+  const el = document.getElementById("status");
+  el.textContent = msg;
+  el.className = isError ? "error" : "";
+}
+
+function formatDate(esriTimestamp) {
+  if (!esriTimestamp) return "—";
+  const d = new Date(esriTimestamp);
+  return d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+}
+
+async function loadCensusData() {
+  // 1. Get GlobalID from URL param
+  const params = new URLSearchParams(window.location.search);
+  const globalId = params.get("globalid");
+
+  if (!globalId) {
+    setStatus("No shelter GlobalID provided in the URL (?globalid=...).", true);
+    return;
   }
 
-  function fmt(v) {
-    if (typeof v === "number" && v > 1_000_000_000_000) return new Date(v).toLocaleString();
-    return v;
+  document.getElementById("footer").textContent = `Shelter GlobalID: ${globalId}`;
+
+  // 2. Get token from cookie
+  const token = getTokenFromCookie();
+  // If using the fallback, replace with: const token = await getTokenFromPortalInfo();
+
+  if (!token) {
+    setStatus(
+      "Could not retrieve an AGOL session token. Make sure you are logged in to ArcGIS Online " +
+      "in this browser and that this page is served from the same domain, or switch to the " +
+      "portal info fallback method.",
+      true
+    );
+    return;
   }
 
-  async function queryLayer(layerUrl, where, token) {
-    const params = new URLSearchParams({
-      where,
-      outFields:      "*",
-      returnGeometry: false,
-      f:              "json",
-      token,
-    });
-    const res  = await fetch(`${layerUrl}/query?${params}`);
-    const data = await res.json();
-    if (data.error) throw new Error(data.error.message);
-    return data.features || [];
+  setStatus("Querying census records…");
+
+  // 3. Build query — match on the shelter FK field using the GlobalID
+  //    AGOL GlobalIDs must be wrapped in single quotes in WHERE clauses
+  const where = `${CONFIG.shelterGlobalIdField} = '${globalId}'`;
+
+  const queryUrl = new URL(`${CONFIG.censusLayerUrl}/query`);
+  queryUrl.searchParams.set("where", where);
+  queryUrl.searchParams.set("outFields", `${CONFIG.dateField},${CONFIG.countField}`);
+  queryUrl.searchParams.set("orderByFields", `${CONFIG.dateField} ASC`);
+  queryUrl.searchParams.set("f", "json");
+  queryUrl.searchParams.set("token", token);
+
+  let data;
+  try {
+    const res = await fetch(queryUrl.toString());
+    data = await res.json();
+  } catch (err) {
+    setStatus(`Network error: ${err.message}`, true);
+    return;
   }
 
-  function renderShelter(attrs) {
-    const el = document.getElementById("shelter-fields");
-    el.innerHTML = "";
-    const name = attrs.shelter_name || attrs.ShelterName || attrs.name || attrs.Name || "";
-    document.getElementById("shelter-name").textContent = name;
-    for (const [k, v] of Object.entries(attrs)) {
-      if (SHELTER_SKIP.has(k)) continue;
-      const item = document.createElement("div");
-      item.className = "field-item";
-      const lbl = document.createElement("div");
-      lbl.className = "field-label";
-      lbl.textContent = k;
-      const val = document.createElement("div");
-      const display = fmt(v);
-      val.className = "field-value" + (display == null || display === "" ? " empty" : "");
-      val.textContent = display != null && display !== "" ? display : "—";
-      item.appendChild(lbl);
-      item.appendChild(val);
-      el.appendChild(item);
-    }
-    document.getElementById("shelter-card").style.display = "";
+  if (data.error) {
+    setStatus(`Service error ${data.error.code}: ${data.error.message}`, true);
+    return;
   }
 
-  function renderCensus(features) {
-    const headEl = document.getElementById("census-head");
-    const bodyEl = document.getElementById("census-body");
-    headEl.innerHTML = "";
-    bodyEl.innerHTML = "";
-    document.getElementById("census-count").textContent = features.length;
-    document.getElementById("census-card").style.display = "";
-    if (features.length === 0) {
-      bodyEl.innerHTML = `<tr><td id="no-census" colspan="99">No census records linked to this shelter.</td></tr>`;
-      return;
-    }
-    const keys = Object.keys(features[0].attributes).filter(k => !CENSUS_SKIP.has(k));
-    const htr = document.createElement("tr");
-    for (const k of keys) {
-      const th = document.createElement("th");
-      th.textContent = k;
-      htr.appendChild(th);
-    }
-    headEl.appendChild(htr);
-    for (const f of features) {
-      const tr = document.createElement("tr");
-      for (const k of keys) {
-        const td = document.createElement("td");
-        td.textContent = fmt(f.attributes[k]) ?? "—";
-        tr.appendChild(td);
-      }
-      bodyEl.appendChild(tr);
-    }
+  const features = data.features ?? [];
+
+  if (features.length === 0) {
+    setStatus("");
+    document.getElementById("no-data").style.display = "block";
+    return;
   }
 
-  // ── Main ──────────────────────────────────────────────────────────────────
-  require(["esri/identity/IdentityManager"], async (IdentityManager) => {
-    try {
-      const params   = new URLSearchParams(window.location.search);
-      const globalid = params.get("id");
+  // 4. Render table
+  const tbody = document.getElementById("census-body");
+  let totalPeople = 0;
 
-      if (!globalid) {
-        setStatus("No GlobalID provided. Add ?id={GlobalID} to the URL.", "error");
-        document.getElementById("subtitle").textContent = "Missing required URL parameter.";
-        return;
-      }
+  features.forEach(f => {
+    const attrs = f.attributes;
+    const night = formatDate(attrs[CONFIG.dateField]);
+    const count = attrs[CONFIG.countField] ?? 0;
+    totalPeople += count;
 
-      document.getElementById("subtitle").textContent = `GlobalID: ${globalid}`;
-      setStatus("Grabbing session token…");
-
-      // Try silent check first
-      let credential = null;
-      try {
-        credential = await IdentityManager.checkSignInStatus(`${PORTAL_URL}/sharing/rest`);
-      } catch (_) { /* no active session */ }
-
-      // If nothing found prompt login
-      if (!credential) {
-        try {
-          credential = await IdentityManager.getCredential(`${PORTAL_URL}/sharing/rest`);
-        } catch (e) {
-          setStatus("Not signed in. Please open this page from your TEMA ArcGIS Org.", "error");
-          return;
-        }
-      }
-
-      const token   = credential.token;
-      const safeGID = globalid.replace(/'/g, "''");
-
-      setStatus("Querying shelter record…");
-      const shelterFeatures = await queryLayer(SHELTER_URL, `GlobalID = '${safeGID}'`, token);
-
-      if (shelterFeatures.length === 0) {
-        setStatus(`No shelter record found for GlobalID: ${globalid}`, "error");
-        return;
-      }
-
-      renderShelter(shelterFeatures[0].attributes);
-
-      setStatus("Querying census records…");
-      const censusFeatures = await queryLayer(CENSUS_URL, `dataid = '${safeGID}'`, token);
-
-      renderCensus(censusFeatures);
-      setStatus(`Loaded — ${censusFeatures.length} census record(s).`, "ok");
-
-    } catch (err) {
-      setStatus(`Error: ${err.message}`, "error");
-      console.error(err);
-    }
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${night}</td><td class="count">${count.toLocaleString()}</td>`;
+    tbody.appendChild(tr);
   });
-</script>
 
+  // Total row
+  const totalRow = document.createElement("tr");
+  totalRow.style.cssText = "background:#003865;color:#fff;font-weight:700";
+  totalRow.innerHTML = `
+    <td>Total (${features.length} nights)</td>
+    <td class="count">${totalPeople.toLocaleString()}</td>
+  `;
+  tbody.appendChild(totalRow);
+
+  setStatus(`Showing ${features.length} night(s) of census data.`);
+  document.getElementById("census-table").style.display = "table";
+}
+
+loadCensusData();
+</script>
 </body>
 </html>
