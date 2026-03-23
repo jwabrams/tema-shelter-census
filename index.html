@@ -70,12 +70,12 @@
 <body>
 
 <h1>Shelter Census</h1>
-<div id="subtitle">People count per night for selected shelter</div>
+<div id="subtitle">People count per night/day for selected shelter</div>
 <div id="status">Loading…</div>
 <table id="census-table" style="display:none">
   <thead>
     <tr>
-      <th>Night</th>
+      <th>Night/Day</th>
       <th class="count">People Count</th>
     </tr>
   </thead>
@@ -93,7 +93,7 @@
 const CONFIG = {
   // Full REST URL to your census/people-count feature layer (include layer index)
   // e.g. "https://services.arcgis.com/ABC123/arcgis/rest/services/ShelterCensus/FeatureServer/0"
-  censusLayerUrl: "https://services1.arcgis.com/kILp9lqGUeOhnDbI/ArcGIS/rest/services/Shelter_Census_View_Only/FeatureServer/0,
+  censusLayerUrl: "https://services1.arcgis.com/kILp9lqGUeOhnDbI/ArcGIS/rest/services/Shelter_Census_View_Only/FeatureServer/0",
 
   // Field in the census layer that stores the shelter GlobalID (the foreign key)
   // This is the field that links a census record back to its parent shelter
@@ -171,9 +171,12 @@ function formatDate(esriTimestamp) {
 }
 
 async function loadCensusData() {
+  console.log("[ShelterCensus] loadCensusData() started");
+
   // 1. Get GlobalID from URL param
   const params = new URLSearchParams(window.location.search);
   const globalId = params.get("globalid");
+  console.log("[ShelterCensus] globalid param:", globalId);
 
   if (!globalId) {
     setStatus("No shelter GlobalID provided in the URL (?globalid=...).", true);
@@ -184,6 +187,7 @@ async function loadCensusData() {
 
   // 2. Get token from cookie
   const token = getTokenFromCookie();
+  console.log("[ShelterCensus] token from cookie:", token ? "FOUND (" + token.substring(0,10) + "...)" : "NULL — not found");
   // If using the fallback, replace with: const token = await getTokenFromPortalInfo();
 
   if (!token) {
@@ -198,7 +202,8 @@ async function loadCensusData() {
 
   setStatus("Querying census records…");
 
-  // 3. Build query — match on the shelter FK field using the GlobalID
+  // 3. Build query
+  console.log("[ShelterCensus] building query against:", CONFIG.censusLayerUrl); — match on the shelter FK field using the GlobalID
   //    AGOL GlobalIDs must be wrapped in single quotes in WHERE clauses
   const where = `${CONFIG.shelterGlobalIdField} = '${globalId}'`;
 
@@ -211,8 +216,11 @@ async function loadCensusData() {
 
   let data;
   try {
+    console.log("[ShelterCensus] fetching:", queryUrl.toString().replace(token, "TOKEN_REDACTED"));
     const res = await fetch(queryUrl.toString());
+    console.log("[ShelterCensus] HTTP status:", res.status);
     data = await res.json();
+    console.log("[ShelterCensus] response:", data);
   } catch (err) {
     setStatus(`Network error: ${err.message}`, true);
     return;
